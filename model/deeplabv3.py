@@ -18,7 +18,8 @@ class DeepLabV3(nn.Module):
         self.model_id = model_id
         self.project_dir = project_dir
         self.create_model_dirs()
-
+        self.conv_1x1_1 = nn.Conv2d(512, 20, kernel_size=1)
+        self.conv_1x1_2 = nn.Conv2d(40, 20, kernel_size=1)
         self.resnet = ResNet18_OS8() # NOTE! specify the type of ResNet here
         self.aspp = ASPP(num_classes=self.num_classes) # NOTE! if you use ResNet50-152, set self.aspp = ASPP_Bottleneck(num_classes=self.num_classes) instead
 
@@ -27,13 +28,12 @@ class DeepLabV3(nn.Module):
 
         h = x.size()[2]
         w = x.size()[3]
-
         feature_map = self.resnet(x) # (shape: (batch_size, 512, h/16, w/16)) (assuming self.resnet is ResNet18_OS16 or ResNet34_OS16. If self.resnet is ResNet18_OS8 or ResNet34_OS8, it will be (batch_size, 512, h/8, w/8). If self.resnet is ResNet50-152, it will be (batch_size, 4*512, h/16, w/16))
-
-        output = self.aspp(feature_map) # (shape: (batch_size, num_classes, h/16, w/16))
-
-        output = F.upsample(output, size=(h, w), mode="bilinear") # (shape: (batch_size, num_classes, h, w))
-
+        output1 = self.aspp(feature_map) # (shape: (batch_size, num_classes, h/16, w/16))
+        output2 = self.conv_1x1_1(feature_map)
+        output2 = torch.cat([output1, output2], 1)
+        output2 = self.conv_1x1_2(output2)
+        output = F.upsample(output2, size=(h, w), mode="bilinear")
         return output
 
     def create_model_dirs(self):
